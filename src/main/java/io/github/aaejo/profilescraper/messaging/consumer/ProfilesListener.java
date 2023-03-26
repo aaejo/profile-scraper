@@ -16,4 +16,6 @@ public class ProfilesListener {
     public void handle(Profile profile) {
         log.info(profile.toString());
     }
+
+    
 }
