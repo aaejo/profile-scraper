@@ -60,20 +60,21 @@ public class ProfilesListener {
 
         log.info(profile.toString());
 
-        // New Reviewer object
+        // Creating Reviewer object
         Reviewer r = new Reviewer(null, null, null, profile.institution(), profile.department(), null);
-        
+        String reviewerEmail = null;
+        String reviewerName = null;
+
         // Gathering data
         List<Node> facultyEntry = Parser.parseFragment(profile.htmlContent(), null, profile.institution().website());
         Document url = client.get(profile.url());
         url.text();
 
-
         // Finding email of reviewer
-        String reviewerEmail = null;
         Pattern p = Pattern.compile("[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+");
         Matcher matcher = p.matcher(url.text());
         Set<String> emails = new HashSet<String>();
+
 
         while (matcher.find()) {
             // Only includes emails that do not start with "enquiries", "inquiries", "info", "contact", or "philosophy"
@@ -85,34 +86,22 @@ public class ProfilesListener {
             reviewerEmail = emails.iterator().next();
         }
 
-
-        // Finding name of reviewer through facultyEntry and using regex to find name
-        String reviewerName = null;
+        // Finding name of reviewer
         String facultyEntryText = facultyEntry.get(0).toString();
         Pattern p2 = Pattern.compile(">([a-zA-Z]+\\s[a-zA-Z]+)<");
         Matcher matcher2 = p2.matcher(facultyEntryText);
         Set<String> names = new HashSet<String>();
-
+        
         while (matcher2.find()) {
             names.add(matcher2.group(1));
         }
         if (names.size() == 1) {
             reviewerName = names.iterator().next();
         }
-
-
-        // Retrieving name
-        //String reviewerName = null;
-        //Elements name = url.select("h1");
-        //reviewerName = name.get(0).text();
-        //r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), null);
-        //System.out.println(r);
-
        
-
         // Check that every element in r is not null
-        // If any element is null, send to manual intervention
-        // Else, send to reviewers-data topic
+        // If any element is null, send to manualInterventionProducer
+        // Else, send to reviewersDataProducer
         r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), null);
         List<MissingFlags> missing = new ArrayList<MissingFlags>();
         
