@@ -97,7 +97,7 @@ public class ProfilesListener {
             // String htmlContent, String url, String department, Institution institution
         
         // reviewer includes the following fields:
-            // - String name, String salutation, String email, Institution institution, String department, String[] specializations
+            // String name, String salutation, String email, Institution institution, String department, String[] specializations
 
         log.info(profile.toString());
 
@@ -142,7 +142,7 @@ public class ProfilesListener {
         if (specializations[0].equals("ERROR")) {
             specializations = null;
         }
-        
+
         // If any element in r is null, send to manualInterventionProducer
         // Otherwise, send to reviewersDataProducer
         r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), specializations);
