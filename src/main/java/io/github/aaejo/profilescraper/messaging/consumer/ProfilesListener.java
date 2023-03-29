@@ -9,10 +9,8 @@ import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.parser.Parser;
-import org.jsoup.select.Elements;
 import org.springframework.boot.context.config.Profiles;
 import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -29,9 +27,11 @@ import lombok.extern.slf4j.Slf4j;
 
 //the following imports are the for AI parser
 import java.util.Arrays;
+import org.apache.hc.client5.http.fluent.Request;
+import org.apache.hc.core5.http.ContentType;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.springframework.web.reactive.function.client.WebClient;
+//import org.springframework.web.reactive.function.client.WebClient;
 
 @Slf4j
 @Component
@@ -51,64 +51,53 @@ public class ProfilesListener {
             this.manualInterventionProducer = manualInterventionProducer;
         }
     
-    public static String[] getSpecializations(String promptContents) { //give this method the website's contents and it will provide a list of specializations or ["Error"] if it can't find anything
-        String promptInstructions = "The following text is the contents of a person's profile on a website. They are a philosophy department faculty member. Create a Java array containing person's philosophy specializations from the following text. Each catagory must be a generic philosophy specialization. Use as few catagories as possible. Do not list specializations that are not generic and widely known philosophy areas and return ['ERROR'] if there aren't any specializations in the Bio paragraph. Here's the website contents for this person: ";
-        String prompt = promptContents + promptInstructions;
-        String parsedOutput = parseParagraph(prompt);
-        String[] array = new String[0];
-        try {
-            int startIndex = parsedOutput.indexOf("[") + 1;
-            int endIndex = parsedOutput.indexOf("]");
-            array = parsedOutput.substring(startIndex, endIndex).split(", ");
-            for (int i = 0; i < array.length; i++) {
-                array[i] = array[i].replaceAll("'", "");
+        public static String[] getSpecializations(String promptContents) { //give this method the website's contents and it will provide a list of specializations or ["ERROR"] if it can't find anything
+            String promptInstructions = "The following text is the contents of a person's profile on a website. They are a philosophy department faculty member. Create a Java array containing person's philosophy specializations from the following text. Each catagory must be a generic philosophy specialization. Use as few catagories as possible. Do not list specializations that are not generic and widely known philosophy areas and return ['ERROR'] if there aren't any specializations in the Bio paragraph. Here's the website contents for this person: ";
+            String prompt = promptInstructions + promptContents;
+            String[] array = new String[0];
+            try {
+                String parsedOutput = parseParagraph(prompt);
+                int startIndex = parsedOutput.indexOf("[") + 1;
+                int endIndex = parsedOutput.indexOf("]");
+                array = parsedOutput.substring(startIndex, endIndex).split(", ");
+                for (int i = 0; i < array.length; i++) {
+                    array[i] = array[i].replaceAll("'", "");
+                }
+            } catch (Exception e) {
+                array = new String[]{"ERROR"};
             }
-        } catch (Exception e) {
-            array = new String[]{"ERROR"};
+            return array;
         }
-        return array;
-    }
 
-    private static String parseParagraph(String prompt) { //helper method to the AI parser
-        WebClient client = WebClient.create();
-        String modelName = "text-davinci-003";
-        String requestBody = "{\"model\": \"" + modelName + "\",\"prompt\": \"" + prompt + "\",\"max_tokens\":50,\"temperature\":0.0,\"n\":1}";
-        String response = client.post()
-            .uri(OPENAI_API_URL)
-            .header("Content-Type", "application/json")
-            .header("Authorization", "Bearer " + OPENAI_API_KEY)
-            .bodyValue(requestBody)
-            .retrieve()
-            .bodyToMono(String.class)
-            .block();
-        return extractFromResponse(response);
-    }
-    
-    private static String extractFromResponse(String response) { //helper method to the AI parser
-		String jsonString = response;
-		JSONObject jsonObject = new JSONObject(jsonString);
-		JSONArray choicesArr = jsonObject.getJSONArray("choices");
-		JSONObject choiceObj = choicesArr.getJSONObject(0);
-		String parsed = choiceObj.getString("text").trim();
-		return parsed;	
-	}
-
+        private static String parseParagraph(String prompt) throws Exception { //helper method to the AI parser
+            String modelName = "text-davinci-003";
+            String requestBody = "{\"model\": \"" + modelName + "\",\"prompt\": \"" + prompt + "\",\"max_tokens\":50,\"temperature\":0.0,\"n\":1}";
+            String response = Request.post(OPENAI_API_URL)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer " + OPENAI_API_KEY)
+                .bodyString(requestBody, ContentType.APPLICATION_JSON)
+                .execute()
+                .returnContent()
+                .asString();
+            return extractFromResponse(response);
+        }
+        
+        private static String extractFromResponse(String response) { //helper method to the AI parser
+            String jsonString = response;
+            JSONObject jsonObject = new JSONObject(jsonString);
+            JSONArray choicesArr = jsonObject.getJSONArray("choices");
+            JSONObject choiceObj = choicesArr.getJSONObject(0);
+            String parsed = choiceObj.getString("text").trim();
+            return parsed;	
+        }
 
     @KafkaHandler
     public void handle(Profile profile) {
         // profile includes the following fields:
-            // - String htmlContent
-            // - String url
-            // - String department
-            // - Institution institution
+            // String htmlContent, String url, String department, Institution institution
         
         // reviewer includes the following fields:
-            // - String name
-            // - String salutation (ex. Dr)
-            // - String email
-            // - Institution institution
-            // - String department
-            // - String[] specializations
+            // - String name, String salutation, String email, Institution institution, String department, String[] specializations
 
         log.info(profile.toString());
 
@@ -147,10 +136,16 @@ public class ProfilesListener {
         if (names.size() == 1) {
             reviewerName = names.iterator().next();
         }
-       
+
+        // Finding specializations of reviewer
+        String[] specializations = getSpecializations(url.text());
+        if (specializations[0].equals("ERROR")) {
+            specializations = null;
+        }
+        
         // If any element in r is null, send to manualInterventionProducer
         // Otherwise, send to reviewersDataProducer
-        r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), null);
+        r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), specializations);
         List<MissingFlags> missing = new ArrayList<MissingFlags>();
         
         if ((r.name() == null) || (r.email() == null) || (r.specializations() == null)) {
