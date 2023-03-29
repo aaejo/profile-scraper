@@ -74,8 +74,6 @@ public class ProfilesListener {
         Pattern p = Pattern.compile("[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+");
         Matcher matcher = p.matcher(url.text());
         Set<String> emails = new HashSet<String>();
-
-
         while (matcher.find()) {
             // Only includes emails that do not start with "enquiries", "inquiries", "info", "contact", or "philosophy"
             if (!(matcher.group().startsWith("enquiries")) && !(matcher.group().startsWith("info")) && !(matcher.group().startsWith("contact")) && !(matcher.group().startsWith("philosophy")) && !(matcher.group().startsWith("inquiries"))) {
@@ -91,7 +89,6 @@ public class ProfilesListener {
         Pattern p2 = Pattern.compile(">([a-zA-Z]+\\s[a-zA-Z]+)<");
         Matcher matcher2 = p2.matcher(facultyEntryText);
         Set<String> names = new HashSet<String>();
-        
         while (matcher2.find()) {
             names.add(matcher2.group(1));
         }
@@ -99,9 +96,8 @@ public class ProfilesListener {
             reviewerName = names.iterator().next();
         }
        
-        // Check that every element in r is not null
-        // If any element is null, send to manualInterventionProducer
-        // Else, send to reviewersDataProducer
+        // If any element in r is null, send to manualInterventionProducer
+        // Otherwise, send to reviewersDataProducer
         r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), null);
         List<MissingFlags> missing = new ArrayList<MissingFlags>();
         
