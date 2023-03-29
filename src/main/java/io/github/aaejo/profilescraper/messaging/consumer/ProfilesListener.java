@@ -52,7 +52,7 @@ public class ProfilesListener {
         }
     
         public static String[] getSpecializations(String promptContents) { //give this method the website's contents and it will provide a list of specializations or ["ERROR"] if it can't find anything
-            String promptInstructions = "The following text is the contents of a person's profile on a website. They are a philosophy department faculty member. Create a Java array containing person's philosophy specializations from the following text. Each catagory must be a generic philosophy specialization. Use as few catagories as possible. Do not list specializations that are not generic and widely known philosophy areas and return ['ERROR'] if there aren't any specializations in the Bio paragraph. Here's the website contents for this person: ";
+            String promptInstructions = "The following text is the contents of a person's profile on a website. They are a philosophy department faculty member. Create a Java array containing person's philosophy specializations from the following text. Each category must be a generic philosophy specialization. Use as few categories as possible. Do not list specializations that are not generic and widely known philosophy areas and return ['ERROR'] if there aren't any specializations in the Bio paragraph. Here's the website contents for this person: ";
             String prompt = promptInstructions + promptContents;
             String[] array = new String[0];
             try {
