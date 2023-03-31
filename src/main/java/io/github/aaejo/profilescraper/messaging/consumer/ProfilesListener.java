@@ -25,9 +25,8 @@ import io.github.aaejo.profilescraper.messaging.producer.ReviewersDataProducer;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 
- * 
  * @author Eileen Li
+ * @author Omri Harary
  */
 @Slf4j
 @Component

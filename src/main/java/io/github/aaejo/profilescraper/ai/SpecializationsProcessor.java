@@ -10,8 +10,6 @@ import io.github.aaejo.profilescraper.ai.configuration.OpenAiClientProperties;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 
- * 
  * @author Aidan Richards
  */
 @Slf4j

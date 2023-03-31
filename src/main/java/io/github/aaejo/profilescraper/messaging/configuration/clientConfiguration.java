@@ -8,8 +8,12 @@ import org.springframework.retry.support.RetryTemplate;
 
 import io.github.aaejo.finder.client.FinderClient;
 
+/**
+ * @author Omri Harary
+ * @author Eileen Li
+ */
 @Configuration
-public class clientConfiguration {
+public class ClientConfiguration {
     @Bean
     public FinderClient client() {
         // Any client settings that should apply to all Jsoup connections

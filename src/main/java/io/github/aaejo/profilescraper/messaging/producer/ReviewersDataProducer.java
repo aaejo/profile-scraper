@@ -9,6 +9,9 @@ import org.springframework.stereotype.Component;
 import io.github.aaejo.messaging.records.Reviewer;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * @author Omri Harary
+ */
 @Slf4j
 @Component
 public class ReviewersDataProducer {
