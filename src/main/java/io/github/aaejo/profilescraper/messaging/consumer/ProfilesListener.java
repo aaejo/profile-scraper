@@ -1,5 +1,6 @@
 package io.github.aaejo.profilescraper.messaging.consumer;
 
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -48,10 +49,11 @@ public class ProfilesListener {
 
     @KafkaHandler
     public void handle(Profile profile) {
+        System.out.println("ppppppppppppppppppppppppppppppppprofile.htmlContent(): " + profile.htmlContent());
         // profile includes the following fields:
             // String htmlContent, String url, String department, Institution institution
         
-        // reviewer includes the following fields:
+        // reviewer includes the following fields: 
             // String name, String salutation, String email, Institution institution, String department, String[] specializations
 
         log.debug("Received profile {}", profile);
@@ -94,9 +96,12 @@ public class ProfilesListener {
 
         // Finding specializations of reviewer
         String[] specializations = specializationsProcessor.getSpecializations(url.text());
+        //String[] specializations = specializationsProcessor.getSpecializations("Department of Philosophy - University of Toronto Department of Philosophy Skip to Main Content Follow @UofTphilosophy U of T Home Arts & Science Home Quercus ACORN Search for: Toggle navigation Home About News All News St. George News UTM News UTSC News Archive: Departmental Newsletters and Magazines Events People All People Main Faculty (tri-campus) Faculty by Research Interests St. George Faculty UTM Faculty UTSC Faculty Graduate Students Administration (tri-campus) Programs and Courses Graduate Studies Undergraduate at St. George Undergraduate at UTSC Undergraduate at UTM Research Research Home Faculty Bookshelf Research Interest Groups Major Research Collaborations Balzan Research Project (2015-19) – Styles of Reasoning Ergo: An Open-Access Journal of Philosophy Employment Contact Contact St. George Staff and Administration UTM Staff and Administration UTSC Staff and Administration Donate Alumni Home » Position: Sessional Lecturer Campus: St. George, Email Address: Biography: BA, Westminster College MA, University of Chicago MA, Duquesne University PhD, University of Toronto Research Interests: Aesthetics, Continental Philosophy, Philosophy of Medicine, Philosophy of Religion, Social and Political Philosophy Back to Top Home About News Events People Programs and Courses Research Employment Contact Donate © University of Toronto");
+        System.out.println("ssssssssssssssssssssssssssssssspecs: " + Arrays.toString(specializations));
         if (specializations[0].equals("ERROR")) {
             specializations = null;
         }
+        System.out.println("output: " + Arrays.toString(specializations));
 
         // If any element in r is null, send to manualInterventionProducer
         // Otherwise, send to reviewersDataProducer
