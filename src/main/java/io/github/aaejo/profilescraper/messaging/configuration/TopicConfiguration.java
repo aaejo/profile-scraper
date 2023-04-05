@@ -18,6 +18,17 @@ public class TopicConfiguration {
                 .build();
     }
 
+    /**
+     * Dead-letter topic for profiles that failed to process
+     * This topic is not subscribed to anywhere, it is just for later review
+     */
+    @Bean
+    public NewTopic profilesDLT() {
+        return TopicBuilder
+                .name("profiles.DLT")
+                .build();
+    }
+
     @Bean
     public NewTopic manualInterventionTopic() {
         return TopicBuilder

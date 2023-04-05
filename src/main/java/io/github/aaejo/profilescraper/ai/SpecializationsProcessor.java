@@ -29,7 +29,7 @@ public class SpecializationsProcessor {
      * @param promptContents
      * @return
      */
-    public String[] getSpecializations(String promptContents) { //give this method the website's contents and it will provide a list of specializations or ["ERROR"] if it can't find anything
+    public String[] getSpecializations(String promptContents) throws Exception { //give this method the website's contents and it will provide a list of specializations or ["ERROR"] if it can't find anything
         String promptInstructions = properties.promptInstructions();
         String prompt = promptInstructions + promptContents;
         String[] array = new String[0];
@@ -44,6 +44,7 @@ public class SpecializationsProcessor {
         } catch (Exception e) {
             log.error("This isn't a profile.", e);
             array = new String[]{"ERROR"};
+            throw e;
         }
         return array;
     }
@@ -70,7 +71,6 @@ public class SpecializationsProcessor {
      * @param response
      * @return
      */
-   
     private static String extractFromResponse(String response) {
         JSONObject jsonObject = new JSONObject(response);
         JSONArray choices = jsonObject.getJSONArray("choices");

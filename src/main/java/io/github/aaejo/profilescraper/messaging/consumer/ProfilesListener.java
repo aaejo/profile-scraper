@@ -4,7 +4,9 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jsoup.nodes.Document;
+import org.jsoup.parser.Parser;
 import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -15,6 +17,8 @@ import io.github.aaejo.messaging.records.IncompleteScrape.MissingFlags;
 import io.github.aaejo.messaging.records.Profile;
 import io.github.aaejo.messaging.records.Reviewer;
 import io.github.aaejo.profilescraper.ai.SpecializationsProcessor;
+import io.github.aaejo.profilescraper.exception.NoProfileDataException;
+import io.github.aaejo.profilescraper.exception.ProfileDetailsProcessingException;
 import io.github.aaejo.profilescraper.messaging.producer.ManualInterventionProducer;
 import io.github.aaejo.profilescraper.messaging.producer.ReviewersDataProducer;
 import lombok.extern.slf4j.Slf4j;
@@ -45,21 +49,30 @@ public class ProfilesListener {
     public void handle(Profile profile) {
         // profile includes the following fields:
             // String htmlContent, String url, String department, Institution institution
-        
+
         // reviewer includes the following fields:
             // String name, String salutation, String email, Institution institution, String department, String[] specializations
 
         log.debug("Received profile {}", profile);
-        
+
         // Gathering data
-        Document url = client.get(profile.url()); // Need to check if there is a profile URL
+        Document profileData;
+        if (StringUtils.isNotBlank(profile.url())) {
+            profileData = client.get(profile.url());
+        } else if (StringUtils.isNotBlank(profile.htmlContent())) {
+            profileData = Parser.parseBodyFragment(profile.htmlContent(), profile.institution().website());
+        } else {
+            log.error("Profile includes no url or htmlContent to extract details from.");
+            throw new NoProfileDataException(profile);
+        }
 
         // Retrieving name, email and specializations of reviewer
-        String[] info = specializationsProcessor.getSpecializations(url.text());
-        
-        // If info returns "ERROR", discard profile
-        if (info.length == 1) {
-            return;
+        String[] info;
+        try {
+            info = specializationsProcessor.getSpecializations(profileData.text());
+        } catch (Exception e) {
+            log.error("Unable to process profile data.", e);
+            throw new ProfileDetailsProcessingException(profile, e);
         }
 
         // Creating Reviewer object
@@ -77,7 +90,7 @@ public class ProfilesListener {
             reviewerSpec = null;
         }
         Reviewer r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), reviewerSpec);
-        
+
         // If any element in r is null, send to manualInterventionProducer
         // Otherwise, send to reviewersDataProducer
         List<MissingFlags> missing = new ArrayList<MissingFlags>();
@@ -100,6 +113,6 @@ public class ProfilesListener {
         else {
             reviewersDataProducer.send(r);
         }
-        
+
     }
 }
