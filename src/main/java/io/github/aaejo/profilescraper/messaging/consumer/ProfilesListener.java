@@ -52,7 +52,7 @@ public class ProfilesListener {
 
         // reviewer includes the following fields:
             // String name, String salutation, String email, Institution institution, String department, String[] specializations
-
+        log.info("Profile recieved from {} in {}", profile.institution().name(), profile.institution().country());
         log.debug("Received profile {}", profile);
 
         // Gathering data
@@ -76,16 +76,16 @@ public class ProfilesListener {
         }
 
         // Creating Reviewer object
-        String reviewerName = info[0].substring(1);
+        String reviewerName = StringUtils.removeStart(info[0], "[");
         String reviewerEmail = info[1];
         String[] reviewerSpec = Arrays.copyOfRange(info, 2, info.length);
-        if (reviewerSpec.length == 1) {
-            reviewerSpec[0] = reviewerSpec[0].substring(1, reviewerSpec[0].length()-1);
+        for (int i = 0; i < reviewerSpec.length; i++) {
+            String spec = reviewerSpec[i];
+            spec = StringUtils.removeStart(spec, "[");
+            spec = StringUtils.removeEnd(spec, "]");
+            reviewerSpec[i] = spec;
         }
-        else {
-            reviewerSpec[0] = reviewerSpec[0].substring(1);
-            reviewerSpec[reviewerSpec.length-1] = reviewerSpec[reviewerSpec.length-1].substring(0, reviewerSpec[reviewerSpec.length-1].length()-1);
-        }
+
         if (reviewerSpec[0].equals("null")) {
             reviewerSpec = null;
         }
@@ -94,11 +94,11 @@ public class ProfilesListener {
         // If any element in r is null, send to manualInterventionProducer
         // Otherwise, send to reviewersDataProducer
         List<MissingFlags> missing = new ArrayList<MissingFlags>();
-        if ((r.name() == "null") || (r.email() == "null") || (r.specializations() == null)) {
-            if (r.name() == "null") {
+        if (StringUtils.equalsIgnoreCase(r.name(), "null") || StringUtils.equalsIgnoreCase(r.email(), "null") || r.specializations() == null) {
+            if (StringUtils.equalsIgnoreCase(r.name(), "null")) {
                 missing.add(MissingFlags.NAME);
             }
-            if (r.email() == "null") {
+            if (StringUtils.equalsIgnoreCase(r.email(), "null")) {
                 missing.add(MissingFlags.EMAIL);
             }
             if (r.specializations() == null) {
@@ -108,9 +108,10 @@ public class ProfilesListener {
             MissingFlags[] flags = new MissingFlags[missing.size()];
             flags = missing.toArray(flags);
             IncompleteScrape incomplete = new IncompleteScrape(profile, r, flags);
+            log.info("Unable to complete profile scrape, sending to manual intervention");
             manualInterventionProducer.send(incomplete);
-        }
-        else {
+        } else {
+            log.info("Reviewer data extraction complete");
             reviewersDataProducer.send(r);
         }
 

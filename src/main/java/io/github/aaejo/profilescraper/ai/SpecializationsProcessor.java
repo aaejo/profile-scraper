@@ -33,18 +33,12 @@ public class SpecializationsProcessor {
         String promptInstructions = properties.promptInstructions();
         String prompt = promptInstructions + promptContents;
         String[] array = new String[0];
-        try {
-            String parsedOutput = parseParagraph(prompt);
-            int startIndex = parsedOutput.indexOf("[");
-            int endIndex = parsedOutput.indexOf("]") + 1;
-            array = parsedOutput.substring(startIndex, endIndex).split(", ");
-            for (int i = 0; i < array.length; i++) {
-                array[i] = array[i].replaceAll("'", "");
-            }
-        } catch (Exception e) {
-            log.error("This isn't a profile.", e);
-            array = new String[]{"ERROR"};
-            throw e;
+        String parsedOutput = parseParagraph(prompt);
+        int startIndex = parsedOutput.indexOf("[");
+        int endIndex = parsedOutput.indexOf("]") + 1;
+        array = parsedOutput.substring(startIndex, endIndex).split(", ");
+        for (int i = 0; i < array.length; i++) {
+            array[i] = array[i].replaceAll("'", "");
         }
         return array;
     }
@@ -64,6 +58,7 @@ public class SpecializationsProcessor {
                 .execute()
                 .returnContent()
                 .asString();
+        log.debug(response);
         return extractFromResponse(response);
     }
 
