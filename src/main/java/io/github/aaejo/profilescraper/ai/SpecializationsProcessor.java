@@ -42,13 +42,11 @@ public class SpecializationsProcessor {
                 array[i] = array[i].replaceAll("'", "");
             }
         } catch (Exception e) {
-            log.error("An error occurred in getting specializations", e);
+            log.error("This isn't a profile.", e);
             array = new String[]{"ERROR"};
         }
         return array;
     }
-
-
     
     /**
      * @param prompt
@@ -58,7 +56,6 @@ public class SpecializationsProcessor {
     private String parseParagraph(String prompt) throws Exception { //helper method to the AI parser
         String modelName = properties.model();
         String requestBody = "{\"model\": \"" + modelName + "\",\"messages\": [{\"role\": \"user\", \"content\": \"" + prompt + "\"}],\"temperature\":0.0}";
-        System.out.println("reqqqqqqqqqqqqqqqqqqqqest body: " + requestBody);
         String response = Request.post(properties.apiUrl())
                 .addHeader("Content-Type", "application/json")
                 .addHeader("Authorization", "Bearer " + properties.apiKey())
@@ -68,21 +65,7 @@ public class SpecializationsProcessor {
                 .asString();
         return extractFromResponse(response);
     }
-    /* 
-    private String parseParagraph(String prompt) throws Exception { //helper method to the AI parser
-        String modelName = properties.model();
-        String requestBody = "{\"model\": \"" + modelName + "\",\"messages\": [{\"role\": \"user\", \"content\": \"" + prompt + "\"}],\"temperature\":0.0}";
-        String response = Request.post(properties.apiUrl())
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Authorization", "Bearer " + properties.apiKey())
-                .bodyString(requestBody, ContentType.APPLICATION_JSON)
-                .execute()
-                .returnContent()
-                .asString();
-        return extractFromResponse(response);
-    }*/
-    
-    
+
     /**
      * @param response
      * @return

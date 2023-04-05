@@ -2,15 +2,9 @@ package io.github.aaejo.profilescraper.messaging.consumer;
 
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Node;
-import org.jsoup.parser.Parser;
 import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -49,70 +43,49 @@ public class ProfilesListener {
 
     @KafkaHandler
     public void handle(Profile profile) {
-        System.out.println("ppppppppppppppppppppppppppppppppprofile.htmlContent(): " + profile.htmlContent());
         // profile includes the following fields:
             // String htmlContent, String url, String department, Institution institution
         
-        // reviewer includes the following fields: 
+        // reviewer includes the following fields:
             // String name, String salutation, String email, Institution institution, String department, String[] specializations
 
         log.debug("Received profile {}", profile);
+        
+        // Gathering data
+        Document url = client.get(profile.url()); // Need to check if there is a profile URL
+
+        // Retrieving name, email and specializations of reviewer
+        String[] info = specializationsProcessor.getSpecializations(url.text());
+        
+        // If info returns "ERROR", discard profile
+        if (info.length == 1) {
+            return;
+        }
 
         // Creating Reviewer object
-        // Reviewer r = new Reviewer(null, null, null, profile.institution(), profile.department(), null);
-        String reviewerEmail = null;
-        String reviewerName = null;
-
-        // Gathering data
-        List<Node> facultyEntry = Parser.parseFragment(profile.htmlContent(), null, profile.institution().website());
-        Document url = client.get(profile.url()); // Need to check if there is a profile URL
-        url.text();
-
-        // Finding email of reviewer
-        Pattern p = Pattern.compile("[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+");
-        Matcher matcher = p.matcher(url.text());
-        Set<String> emails = new HashSet<String>();
-        while (matcher.find()) {
-            // Only includes emails that do not start with "enquiries", "inquiries", "info", "contact", or "philosophy"
-            if (!(matcher.group().startsWith("enquiries")) && !(matcher.group().startsWith("info")) && !(matcher.group().startsWith("contact")) && !(matcher.group().startsWith("philosophy")) && !(matcher.group().startsWith("inquiries"))) {
-                emails.add(matcher.group());
-            }
+        String reviewerName = info[0].substring(1);
+        String reviewerEmail = info[1];
+        String[] reviewerSpec = Arrays.copyOfRange(info, 2, info.length);
+        if (reviewerSpec.length == 1) {
+            reviewerSpec[0] = reviewerSpec[0].substring(1, reviewerSpec[0].length()-1);
         }
-        if (emails.size() == 1) {
-            reviewerEmail = emails.iterator().next();
+        else {
+            reviewerSpec[0] = reviewerSpec[0].substring(1);
+            reviewerSpec[reviewerSpec.length-1] = reviewerSpec[reviewerSpec.length-1].substring(0, reviewerSpec[reviewerSpec.length-1].length()-1);
         }
-
-        // Finding name of reviewer
-        String facultyEntryText = facultyEntry.get(0).toString();
-        Pattern p2 = Pattern.compile(">([a-zA-Z]+\\s[a-zA-Z]+)<");
-        Matcher matcher2 = p2.matcher(facultyEntryText);
-        Set<String> names = new HashSet<String>();
-        while (matcher2.find()) {
-            names.add(matcher2.group(1));
+        if (reviewerSpec[0].equals("null")) {
+            reviewerSpec = null;
         }
-        if (names.size() == 1) {
-            reviewerName = names.iterator().next();
-        }
-
-        // Finding specializations of reviewer
-        String[] specializations = specializationsProcessor.getSpecializations(url.text());
-        //String[] specializations = specializationsProcessor.getSpecializations("Department of Philosophy - University of Toronto Department of Philosophy Skip to Main Content Follow @UofTphilosophy U of T Home Arts & Science Home Quercus ACORN Search for: Toggle navigation Home About News All News St. George News UTM News UTSC News Archive: Departmental Newsletters and Magazines Events People All People Main Faculty (tri-campus) Faculty by Research Interests St. George Faculty UTM Faculty UTSC Faculty Graduate Students Administration (tri-campus) Programs and Courses Graduate Studies Undergraduate at St. George Undergraduate at UTSC Undergraduate at UTM Research Research Home Faculty Bookshelf Research Interest Groups Major Research Collaborations Balzan Research Project (2015-19) – Styles of Reasoning Ergo: An Open-Access Journal of Philosophy Employment Contact Contact St. George Staff and Administration UTM Staff and Administration UTSC Staff and Administration Donate Alumni Home » Position: Sessional Lecturer Campus: St. George, Email Address: Biography: BA, Westminster College MA, University of Chicago MA, Duquesne University PhD, University of Toronto Research Interests: Aesthetics, Continental Philosophy, Philosophy of Medicine, Philosophy of Religion, Social and Political Philosophy Back to Top Home About News Events People Programs and Courses Research Employment Contact Donate © University of Toronto");
-        System.out.println("ssssssssssssssssssssssssssssssspecs: " + Arrays.toString(specializations));
-        if (specializations[0].equals("ERROR")) {
-            specializations = null;
-        }
-        System.out.println("output: " + Arrays.toString(specializations));
-
+        Reviewer r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), reviewerSpec);
+        
         // If any element in r is null, send to manualInterventionProducer
         // Otherwise, send to reviewersDataProducer
-        Reviewer r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), specializations);
         List<MissingFlags> missing = new ArrayList<MissingFlags>();
-        
-        if ((r.name() == null) || (r.email() == null) || (r.specializations() == null)) {
-            if (r.name() == null) {
+        if ((r.name() == "null") || (r.email() == "null") || (r.specializations() == null)) {
+            if (r.name() == "null") {
                 missing.add(MissingFlags.NAME);
             }
-            if (r.email() == null) {
+            if (r.email() == "null") {
                 missing.add(MissingFlags.EMAIL);
             }
             if (r.specializations() == null) {
