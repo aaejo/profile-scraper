@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import org.springframework.stereotype.Component;
 
 import io.github.aaejo.profilescraper.ai.configuration.OpenAiClientProperties;
+import io.github.aaejo.profilescraper.exception.BogusProfileException;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -34,12 +35,16 @@ public class SpecializationsProcessor {
         String prompt = promptInstructions + promptContents;
         String[] array = new String[0];
         String parsedOutput = parseParagraph(prompt);
+        if (parsedOutput.contains("ERROR")) {
+            throw new BogusProfileException(null);
+        }
         int startIndex = parsedOutput.indexOf("[");
         int endIndex = parsedOutput.indexOf("]") + 1;
         array = parsedOutput.substring(startIndex, endIndex).split(", ");
         for (int i = 0; i < array.length; i++) {
             array[i] = array[i].replaceAll("'", "");
         }
+        System.out.println("parsed output is: " + parsedOutput);
         return array;
     }
     
@@ -59,6 +64,7 @@ public class SpecializationsProcessor {
                 .returnContent()
                 .asString();
         log.debug(response);
+        System.out.println("rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrraw chatgpt response is: " + response);
         return extractFromResponse(response);
     }
 

@@ -8,6 +8,7 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 
+import io.github.aaejo.profilescraper.exception.BogusProfileException;
 import io.github.aaejo.profilescraper.exception.NoProfileDataException;
 
 /**
@@ -24,6 +25,7 @@ public class ConsumerConfiguration {
                 new FixedBackOff(2000L, 1L));
         // Do not retry when the required profile data fields are empty
         handler.addNotRetryableExceptions(NoProfileDataException.class);
+        handler.addNotRetryableExceptions(BogusProfileException.class);
 
         return handler;
     }

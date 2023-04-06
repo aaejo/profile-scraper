@@ -17,6 +17,7 @@ import io.github.aaejo.messaging.records.IncompleteScrape.MissingFlags;
 import io.github.aaejo.messaging.records.Profile;
 import io.github.aaejo.messaging.records.Reviewer;
 import io.github.aaejo.profilescraper.ai.SpecializationsProcessor;
+import io.github.aaejo.profilescraper.exception.BogusProfileException;
 import io.github.aaejo.profilescraper.exception.NoProfileDataException;
 import io.github.aaejo.profilescraper.exception.ProfileDetailsProcessingException;
 import io.github.aaejo.profilescraper.messaging.producer.ManualInterventionProducer;
@@ -69,7 +70,12 @@ public class ProfilesListener {
         // Retrieving name, email and specializations of reviewer
         String[] info;
         try {
-            info = specializationsProcessor.getSpecializations(profileData.text());
+            System.out.println("rrrrrrrrrrrrrrrrraw input text: " + profileData.text());
+            //info = specializationsProcessor.getSpecializations(profileData.text());
+            info = specializationsProcessor.getSpecializations("Otago Philosophy Ellis Philosophy PROGRAMME EVENTS POSTGRADUATE UNDERGRADUATE STAFF CONTACT HISTORY TUTORS LISA ELLIS PROFESSOR Director, Philosophy, Politics, and Economics Programme PhD Berkeley (1999) MA Berkeley (1992) BA Princeton (1990) office: 2C14, second floor, central corridor, Burns Building, 95 Albany Street office hours for semester 1 2022: Wednesdays 2-4 phone: +64 (0)3 479 8727 email: RESEARCH TEACHING academia.edu Twitter Curriculum Vitae Lisa Ellis is Professor of Philosophy and Director of the Philosophy, Politics, and Economics programme at the University of Otago. Lisa?s work investigates how we can make policy decisions that serve our interests in flourishing now and in the future. Her current project, ?the collective implications of discrete decisions,? includes papers in environmental democracy, the collective ethics of flying, the value of biodiversity losses, climate adaptation justice, and species extinction. See her research page for links to Lisa?s publications. Lisa is past president of the Association for Political Theory, former section editor of the Journal of Politics, and a current editor of Political Theory. Lisa?s work has been supported by the Institute for Advanced Study (Princeton), the National Endowment for the Humanities, the Alexander von Humboldt Foundation, the Andrew W. Mellon Foundation, the Deutscher Akademischer Austauschdienst, and New Zealand?s Deep South National Science Challenge. Read about Lisa?s recent work: NZ Herald, on anti-natalism, Guardian, on emissions reduction, Newsroom, ?Playing chicken with the government?; Stuff, ?Beach Road?; Stuff, ?Climate Myths Debunked? Hear about Lisa?s recent work: research seminar, 'Maximum Scholarly Value for Minimal Harm: Practical Climate Ethics for Academics' (recording here); Deep South webinar on adaptation, 95bfm on climate cooperation, Dialogues podcast from Snodger Media; Radio New Zealand, ?Sea-Level Rise Threat?; Lisa talks to Jesse Mulligan on RNZ Afternoons PROGRAMME staff contact history tutors EVENTS seminar fellows lectures conferences POSTGRADUATE qualifications students seminar placement UNDERGRADUATE qualifications papers club careers");
+        } catch (BogusProfileException e) {
+            log.error("Profile scrapper malfunctioned. Bogus profile discarded.");
+            throw new BogusProfileException(profile);
         } catch (Exception e) {
             log.error("Unable to process profile data.", e);
             throw new ProfileDetailsProcessingException(profile, e);
