@@ -1,0 +1,4 @@
+Some of the test prompts used for SpecializationsProcessor
+
+- missing email
+Input: 

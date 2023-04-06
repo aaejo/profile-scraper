@@ -5,6 +5,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
 
+/**
+ * @author Omri Harary
+ */
 @Configuration
 public class TopicConfiguration {
 
@@ -12,6 +15,17 @@ public class TopicConfiguration {
     public NewTopic profilesTopic() {
         return TopicBuilder
                 .name("profiles")
+                .build();
+    }
+
+    /**
+     * Dead-letter topic for profiles that failed to process
+     * This topic is not subscribed to anywhere, it is just for later review
+     */
+    @Bean
+    public NewTopic profilesDLT() {
+        return TopicBuilder
+                .name("profiles.DLT")
                 .build();
     }
 
