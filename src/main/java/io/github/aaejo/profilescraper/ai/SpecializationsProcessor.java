@@ -36,7 +36,7 @@ public class SpecializationsProcessor {
         String[] array = new String[0];
         String parsedOutput = parseParagraph(prompt);
         if (parsedOutput.contains("ERROR")) {
-            throw new BogusProfileException(null);
+            throw new BogusProfileException();
         }
         int startIndex = parsedOutput.indexOf("[");
         int endIndex = parsedOutput.indexOf("]") + 1;
@@ -44,7 +44,7 @@ public class SpecializationsProcessor {
         for (int i = 0; i < array.length; i++) {
             array[i] = array[i].replaceAll("'", "");
         }
-        System.out.println("parsed output is: " + parsedOutput);
+        log.debug("Parsed output is: {}", parsedOutput);
         return array;
     }
     
@@ -64,7 +64,6 @@ public class SpecializationsProcessor {
                 .returnContent()
                 .asString();
         log.debug(response);
-        System.out.println("rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrraw chatgpt response is: " + response);
         return extractFromResponse(response);
     }
 
