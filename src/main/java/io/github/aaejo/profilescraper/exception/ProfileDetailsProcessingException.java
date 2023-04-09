@@ -11,7 +11,7 @@ public class ProfileDetailsProcessingException extends RuntimeException {
     private Profile profile;
 
     public ProfileDetailsProcessingException(Profile profile, Throwable cause) {
-        super(MESSAGE_TEMPLATE);
+        super(MESSAGE_TEMPLATE, cause);
 
         this.profile = profile;
     }

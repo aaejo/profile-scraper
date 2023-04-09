@@ -1,9 +1,12 @@
 package io.github.aaejo.profilescraper.ai;
 
-import org.apache.hc.client5.http.fluent.Request;
-import org.apache.hc.core5.http.ContentType;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.RequestEntity;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.stereotype.Component;
 
 import io.github.aaejo.profilescraper.ai.configuration.OpenAiClientProperties;
@@ -17,12 +20,14 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class SpecializationsProcessor {
 
+    private final RestTemplate restTemplate;
     private final OpenAiClientProperties properties;
 
     /**
      * @param properties
      */
-    public SpecializationsProcessor(OpenAiClientProperties properties) {
+    public SpecializationsProcessor(RestTemplateBuilder restTemplateBuilder, OpenAiClientProperties properties) {
+        this.restTemplate = restTemplateBuilder.build();
         this.properties = properties;
     }
 
@@ -54,15 +59,14 @@ public class SpecializationsProcessor {
      * @throws Exception
      */
     private String parseParagraph(String prompt) throws Exception { //helper method to the AI parser
-        String modelName = properties.model();
-        String requestBody = "{\"model\": \"" + modelName + "\",\"messages\": [{\"role\": \"user\", \"content\": \"" + prompt + "\"}],\"temperature\":0.0}";
-        String response = Request.post(properties.apiUrl())
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Authorization", "Bearer " + properties.apiKey())
-                .bodyString(requestBody, ContentType.APPLICATION_JSON)
-                .execute()
-                .returnContent()
-                .asString();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(properties.apiKey());
+        OpenAiRequest body = new OpenAiRequest(properties.model(), prompt);
+        RequestEntity<OpenAiRequest> request = RequestEntity.post(properties.apiUrl())
+                .headers(headers)
+                .body(body);
+        String response = restTemplate.exchange(request, String.class).getBody();
         log.debug(response);
         return extractFromResponse(response);
     }
