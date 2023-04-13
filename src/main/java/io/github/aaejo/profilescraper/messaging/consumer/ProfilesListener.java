@@ -1,17 +1,20 @@
 package io.github.aaejo.profilescraper.messaging.consumer;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.jsoup.parser.Parser;
 import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 import io.github.aaejo.finder.client.FinderClient;
+import io.github.aaejo.finder.client.FinderClientResponse;
 import io.github.aaejo.messaging.records.IncompleteScrape;
 import io.github.aaejo.messaging.records.IncompleteScrape.MissingFlags;
 import io.github.aaejo.messaging.records.Profile;
@@ -59,7 +62,24 @@ public class ProfilesListener {
         // Gathering data
         Document profileData;
         if (StringUtils.isNotBlank(profile.url())) {
-            profileData = client.get(profile.url());
+            // TODO: sometimes the link is to their own site, that's generally fine, but sometimes it's to amazon or something?
+            // ie it's not a profile link, it's just a book link embedded. Need to catch that.
+            FinderClientResponse response = client.get(profile.url());
+            if (response == null || response.document() == null || !response.isSuccess()) {
+                log.error("Failed to fetch profile page from {}. May attempt htmlContent as fallback.", profile.url());
+
+                if (StringUtils.isNotBlank(profile.htmlContent())) {
+                    profileData = Parser.parseBodyFragment(profile.htmlContent(), profile.institution().website());
+                } else {
+                    if (response.exception().isPresent()) {
+                        throw new ProfileDetailsProcessingException(response.exception().get());
+                    } else {
+                        throw new ProfileDetailsProcessingException();
+                    }
+                }
+            } else {
+                profileData = response.document();
+            }
         } else if (StringUtils.isNotBlank(profile.htmlContent())) {
             profileData = Parser.parseBodyFragment(profile.htmlContent(), profile.institution().website());
         } else {
@@ -70,18 +90,31 @@ public class ProfilesListener {
         // Retrieving name, email and specializations of reviewer
         String[] info;
         try {
-            info = specializationsProcessor.getSpecializations(profileData.text());
+            String contents = drillDownToContent(profileData).text();
+            info = specializationsProcessor.getSpecializations(contents);
         } catch (BogusProfileException e) {
-            log.error("Profile scrapper malfunctioned. Bogus profile discarded.");
+            log.error("Profile scraper malfunctioned. Bogus profile discarded.");
             throw e;
         } catch (Exception e) {
             log.error("Unable to process profile data.", e);
-            throw new ProfileDetailsProcessingException(profile, e);
+            throw new ProfileDetailsProcessingException(e);
         }
 
         // Creating Reviewer object
+        List<MissingFlags> missing = new ArrayList<MissingFlags>();
+
         String reviewerName = StringUtils.removeStart(info[0], "[");
+        if (StringUtils.equalsIgnoreCase(reviewerName, "null")) {
+            missing.add(MissingFlags.NAME);
+            reviewerName = null;
+        }
+
         String reviewerEmail = info[1];
+        if (StringUtils.equalsIgnoreCase(reviewerEmail, "null")) {
+            missing.add(MissingFlags.EMAIL);
+            reviewerEmail = null;
+        }
+
         String[] reviewerSpec = Arrays.copyOfRange(info, 2, info.length);
         for (int i = 0; i < reviewerSpec.length; i++) {
             String spec = reviewerSpec[i];
@@ -90,24 +123,16 @@ public class ProfilesListener {
             reviewerSpec[i] = spec;
         }
 
-        if (reviewerSpec[0].equals("null")) {
+        if (StringUtils.equalsIgnoreCase(reviewerSpec[0], "null")) {
+            missing.add(MissingFlags.SPECS);
             reviewerSpec = null;
         }
+
         Reviewer r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), reviewerSpec);
 
-        // If any element in r is null, send to manualInterventionProducer
+        // If any missing flags are set, send to manualInterventionProducer
         // Otherwise, send to reviewersDataProducer
-        List<MissingFlags> missing = new ArrayList<MissingFlags>();
-        if (StringUtils.equalsIgnoreCase(r.name(), "null") || StringUtils.equalsIgnoreCase(r.email(), "null") || r.specializations() == null) {
-            if (StringUtils.equalsIgnoreCase(r.name(), "null")) {
-                missing.add(MissingFlags.NAME);
-            }
-            if (StringUtils.equalsIgnoreCase(r.email(), "null")) {
-                missing.add(MissingFlags.EMAIL);
-            }
-            if (r.specializations() == null) {
-                missing.add(MissingFlags.SPECS);
-            }
+        if (!missing.isEmpty()) {
             // send to manual intervention
             MissingFlags[] flags = new MissingFlags[missing.size()];
             flags = missing.toArray(flags);
@@ -118,6 +143,79 @@ public class ProfilesListener {
             log.info("Reviewer data extraction complete");
             reviewersDataProducer.send(r);
         }
+    }
 
+    /**
+     * Modified from profile-finder
+     * @param page
+     * @return
+     */
+    private Element drillDownToContent(Document page) {
+        List<Element> drillDown = new ArrayList<>();
+        drillDown.add(page.body());
+
+        Element skipAnchor = page.selectFirst("a[id=main-content]:empty");
+        Element mainContentBySkipAnchor = skipAnchor != null ? skipAnchor.parent() : null;
+        if (mainContentBySkipAnchor != null) {
+            log.debug("Found main content of {} by using skip anchor", page.location());
+            drillDown.add(mainContentBySkipAnchor);
+        }
+
+        Element mainContentByMainTag = page.selectFirst("main");
+        if (mainContentByMainTag != null) {
+            log.debug("Found main content of {} by HTML main tag", page.location());
+            drillDown.add(mainContentByMainTag);
+        }
+
+        Element mainContentByAriaRole = page.selectFirst("*[role=main]");
+        if (mainContentByAriaRole != null) {
+            log.debug("Found main content of {} by main ARIA role", page.location());
+            drillDown.add(mainContentByAriaRole);
+        }
+
+        Element mainContentByIdMain = page.getElementById("main");
+        if (mainContentByIdMain != null && mainContentByIdMain.tag().isBlock()) {
+            log.debug("Found main content of {} by id = main", page.location());
+            drillDown.add(mainContentByIdMain);
+        }
+
+        Element mainContentByIdContent = page.getElementById("content");
+        if (mainContentByIdContent != null && mainContentByIdContent.tag().isBlock()) {
+            log.debug("Found main content of {} by id = content", page.location());
+            drillDown.add(mainContentByIdContent);
+        }
+
+        Element mainContentByIdMainContent = page.getElementById("main-content");
+        if (mainContentByIdMainContent != null && mainContentByIdMainContent.tag().isBlock()) {
+            log.debug("Found main content of {} by id = main-content", page.location());
+            drillDown.add(mainContentByIdMainContent);
+        }
+
+        Element content = drillDown.stream()
+                .distinct()
+                .filter(e -> StringUtils.isNotBlank(e.text()))
+                .sorted(Comparator.<Element>comparingInt(e -> e.parents().size()).reversed())
+                .findFirst().get();
+        
+        if (content.tagName().equals("body")) {
+            if (!content.getElementsByTag("header").isEmpty() || !content.getElementsByTag("footer").isEmpty()) {
+                // Deep clone to not be modifying the original fetched page
+                content = content.clone();
+                // Select first header element, assumed to be page header (rarely more than one but possible)
+                Element pageHeader = content.select("header").first();
+                // Select last footer element, assumed to be page footer (rarely more than one but possible)
+                Element pageFooter = content.select("footer").last();
+
+                if (pageHeader != null) {
+                    pageHeader.remove();
+                }
+
+                if (pageFooter != null) {
+                    pageFooter.remove();
+                }
+            }
+        }
+
+        return content;
     }
 }
