@@ -1,11 +1,11 @@
 package io.github.aaejo.profilescraper.messaging.consumer;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.routines.EmailValidator;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.parser.Parser;
@@ -19,7 +19,8 @@ import io.github.aaejo.messaging.records.IncompleteScrape;
 import io.github.aaejo.messaging.records.IncompleteScrape.MissingFlags;
 import io.github.aaejo.messaging.records.Profile;
 import io.github.aaejo.messaging.records.Reviewer;
-import io.github.aaejo.profilescraper.ai.SpecializationsProcessor;
+import io.github.aaejo.profilescraper.ai.ProfileInfo;
+import io.github.aaejo.profilescraper.ai.ProfileProcessor;
 import io.github.aaejo.profilescraper.exception.BogusProfileException;
 import io.github.aaejo.profilescraper.exception.NoProfileDataException;
 import io.github.aaejo.profilescraper.exception.ProfileDetailsProcessingException;
@@ -37,16 +38,18 @@ import lombok.extern.slf4j.Slf4j;
 public class ProfilesListener {
 
     private final FinderClient client;
-    private final SpecializationsProcessor specializationsProcessor;
+    private final ProfileProcessor specializationsProcessor;
     private final ReviewersDataProducer reviewersDataProducer;
     private final ManualInterventionProducer manualInterventionProducer;
+    private final EmailValidator emailValidator;
 
-    public ProfilesListener(FinderClient client, SpecializationsProcessor specializationsProcessor,
+    public ProfilesListener(FinderClient client, ProfileProcessor specializationsProcessor,
             ReviewersDataProducer reviewersDataProducer, ManualInterventionProducer manualInterventionProducer) {
         this.client = client;
         this.specializationsProcessor = specializationsProcessor;
         this.reviewersDataProducer = reviewersDataProducer;
         this.manualInterventionProducer = manualInterventionProducer;
+        this.emailValidator = EmailValidator.getInstance();
     }
 
     @KafkaHandler
@@ -88,9 +91,9 @@ public class ProfilesListener {
         }
 
         // Retrieving name, email and specializations of reviewer
-        String[] info;
+        ProfileInfo info;
+        String contents = drillDownToContent(profileData).text();
         try {
-            String contents = drillDownToContent(profileData).text();
             info = specializationsProcessor.getSpecializations(contents);
         } catch (BogusProfileException e) {
             log.error("Profile scraper malfunctioned. Bogus profile discarded.");
@@ -103,32 +106,21 @@ public class ProfilesListener {
         // Creating Reviewer object
         List<MissingFlags> missing = new ArrayList<MissingFlags>();
 
-        String reviewerName = StringUtils.removeStart(info[0], "[");
-        if (StringUtils.equalsIgnoreCase(reviewerName, "null")) {
+        if (info.name() == null) {
             missing.add(MissingFlags.NAME);
-            reviewerName = null;
         }
 
-        String reviewerEmail = info[1];
-        if (StringUtils.equalsIgnoreCase(reviewerEmail, "null")) {
+        if (info.email() == null || !emailValidator.isValid(info.email())) {
+            // TODO: we should actually keep track of what invalid emails are returned
             missing.add(MissingFlags.EMAIL);
-            reviewerEmail = null;
         }
 
-        String[] reviewerSpec = Arrays.copyOfRange(info, 2, info.length);
-        for (int i = 0; i < reviewerSpec.length; i++) {
-            String spec = reviewerSpec[i];
-            spec = StringUtils.removeStart(spec, "[");
-            spec = StringUtils.removeEnd(spec, "]");
-            reviewerSpec[i] = spec;
-        }
-
-        if (StringUtils.equalsIgnoreCase(reviewerSpec[0], "null")) {
+        if (info.specializations() == null) {
             missing.add(MissingFlags.SPECS);
-            reviewerSpec = null;
         }
 
-        Reviewer r = new Reviewer(reviewerName, "Dr.", reviewerEmail, profile.institution(), profile.department(), reviewerSpec);
+        Reviewer r = new Reviewer(info.name(), "Dr.", info.email(), profile.institution(), profile.department(),
+                info.specializations());
 
         // If any missing flags are set, send to manualInterventionProducer
         // Otherwise, send to reviewersDataProducer

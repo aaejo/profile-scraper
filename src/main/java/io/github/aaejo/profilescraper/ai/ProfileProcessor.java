@@ -18,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-public class SpecializationsProcessor {
+public class ProfileProcessor {
 
     private final RestTemplate restTemplate;
     private final OpenAiClientProperties properties;
@@ -26,7 +26,7 @@ public class SpecializationsProcessor {
     /**
      * @param properties
      */
-    public SpecializationsProcessor(RestTemplateBuilder restTemplateBuilder, OpenAiClientProperties properties) {
+    public ProfileProcessor(RestTemplateBuilder restTemplateBuilder, OpenAiClientProperties properties) {
         this.restTemplate = restTemplateBuilder.build();
         this.properties = properties;
     }
@@ -35,22 +35,21 @@ public class SpecializationsProcessor {
      * @param promptContents
      * @return
      */
-    public String[] getSpecializations(String promptContents) throws Exception { //give this method the website's contents and it will provide a list of specializations or ["ERROR"] if it can't find anything
+    public ProfileInfo getSpecializations(String promptContents) throws Exception { //give this method the website's contents and it will provide a list of specializations or ["ERROR"] if it can't find anything
         String promptInstructions = properties.promptInstructions();
         String prompt = promptInstructions + promptContents;
-        String[] array = new String[0];
         String parsedOutput = parseParagraph(prompt);
         if (parsedOutput.contains("ERROR")) {
             throw new BogusProfileException();
         }
         int startIndex = parsedOutput.indexOf("[");
         int endIndex = parsedOutput.indexOf("]") + 1;
-        array = parsedOutput.substring(startIndex, endIndex).split(", ");
+        String[] array = parsedOutput.substring(startIndex, endIndex).split(", ");
         for (int i = 0; i < array.length; i++) {
             array[i] = array[i].replaceAll("'", "");
         }
         log.debug("Parsed output is: {}", parsedOutput);
-        return array;
+        return ProfileInfo.fromResponseArray(array);
     }
     
     /**
