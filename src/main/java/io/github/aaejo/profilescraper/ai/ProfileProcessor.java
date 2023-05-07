@@ -1,43 +1,50 @@
 package io.github.aaejo.profilescraper.ai;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.github.aaejo.profilescraper.ai.configuration.OpenAiClientProperties;
 import io.github.aaejo.profilescraper.exception.BogusProfileException;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author Aidan Richards
  */
-@Slf4j
 @Component
 public class ProfileProcessor {
+    private static final Logger log = LoggerFactory.getLogger(ProfileProcessor.class);
 
     private final RestTemplate restTemplate;
     private final OpenAiClientProperties properties;
+    private final ObjectMapper objectMapper;
 
     /**
      * @param properties
      */
-    public ProfileProcessor(RestTemplateBuilder restTemplateBuilder, OpenAiClientProperties properties) {
+    public ProfileProcessor(RestTemplateBuilder restTemplateBuilder, OpenAiClientProperties properties,
+            ObjectMapper objectMapper) {
         this.restTemplate = restTemplateBuilder.build();
         this.properties = properties;
+        this.objectMapper = objectMapper;
     }
 
     /**
-     * @param promptContents
+     * @param profileContents
      * @return
      */
-    public ProfileInfo getSpecializations(String promptContents) throws Exception { //give this method the website's contents and it will provide a list of specializations or ["ERROR"] if it can't find anything
+    public ProfileInfo process(String profileContents) throws Exception { //give this method the website's contents and it will provide a list of specializations or ["ERROR"] if it can't find anything
         String promptInstructions = properties.promptInstructions();
-        String prompt = promptInstructions + promptContents;
+        String prompt = promptInstructions + profileContents;
         String parsedOutput = parseParagraph(prompt);
         if (parsedOutput.contains("ERROR")) {
             throw new BogusProfileException();
@@ -73,12 +80,14 @@ public class ProfileProcessor {
     /**
      * @param response
      * @return
+     * @throws JsonProcessingException
+     * @throws JsonMappingException
      */
-    private static String extractFromResponse(String response) {
-        JSONObject jsonObject = new JSONObject(response);
-        JSONArray choices = jsonObject.getJSONArray("choices");
-        JSONObject message = choices.getJSONObject(0).getJSONObject("message");
-        String content = message.getString("content").trim();
+    private String extractFromResponse(String response) throws JsonMappingException, JsonProcessingException {
+        JsonNode responseNode = objectMapper.readTree(response);
+        JsonNode choices = responseNode.path("choices");
+        JsonNode message = choices.path(0).path("message");
+        String content = message.path("content").asText().trim();
         return content;
     }
 }

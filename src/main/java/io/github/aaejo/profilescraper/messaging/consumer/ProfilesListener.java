@@ -9,6 +9,8 @@ import org.apache.commons.validator.routines.EmailValidator;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.parser.Parser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -26,16 +28,15 @@ import io.github.aaejo.profilescraper.exception.NoProfileDataException;
 import io.github.aaejo.profilescraper.exception.ProfileDetailsProcessingException;
 import io.github.aaejo.profilescraper.messaging.producer.ManualInterventionProducer;
 import io.github.aaejo.profilescraper.messaging.producer.ReviewersDataProducer;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author Eileen Li
  * @author Omri Harary
  */
-@Slf4j
 @Component
 @KafkaListener(id = "profile-scraper", topics = "profiles")
 public class ProfilesListener {
+    private static final Logger log = LoggerFactory.getLogger(ProfilesListener.class);
 
     private final FinderClient client;
     private final ProfileProcessor specializationsProcessor;
@@ -63,7 +64,7 @@ public class ProfilesListener {
         log.debug("Received profile {}", profile);
 
         // Gathering data
-        Document profileData;
+        Document profilePage;
         if (StringUtils.isNotBlank(profile.url())) {
             // TODO: sometimes the link is to their own site, that's generally fine, but sometimes it's to amazon or something?
             // ie it's not a profile link, it's just a book link embedded. Need to catch that.
@@ -72,7 +73,7 @@ public class ProfilesListener {
                 log.error("Failed to fetch profile page from {}. May attempt htmlContent as fallback.", profile.url());
 
                 if (StringUtils.isNotBlank(profile.htmlContent())) {
-                    profileData = Parser.parseBodyFragment(profile.htmlContent(), profile.institution().website());
+                    profilePage = Parser.parseBodyFragment(profile.htmlContent(), profile.institution().website());
                 } else {
                     if (response.exception().isPresent()) {
                         throw new ProfileDetailsProcessingException(response.exception().get());
@@ -81,10 +82,10 @@ public class ProfilesListener {
                     }
                 }
             } else {
-                profileData = response.document();
+                profilePage = response.document();
             }
         } else if (StringUtils.isNotBlank(profile.htmlContent())) {
-            profileData = Parser.parseBodyFragment(profile.htmlContent(), profile.institution().website());
+            profilePage = Parser.parseBodyFragment(profile.htmlContent(), profile.institution().website());
         } else {
             log.error("Profile includes no url or htmlContent to extract details from.");
             throw new NoProfileDataException(profile);
@@ -92,9 +93,9 @@ public class ProfilesListener {
 
         // Retrieving name, email and specializations of reviewer
         ProfileInfo info;
-        String contents = drillDownToContent(profileData).text();
+        String contents = drillDownToContent(profilePage).text();
         try {
-            info = specializationsProcessor.getSpecializations(contents);
+            info = specializationsProcessor.process(contents);
         } catch (BogusProfileException e) {
             log.error("Profile scraper malfunctioned. Bogus profile discarded.");
             throw e;
